@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "app-data-rt"
+version = "0.1.0"
+description = "Excel file processing and data validation tool."
+readme = "README.md"
+requires-python = ">=3.8"
+
+dependencies = [
+    "numpy==2.4.2",
+    "pandas==3.0.0",
+    "python-dateutil==2.9.0.post0",
+    "six==1.17.0",
+    "openpyxl==3.1.5"
+]
+
+[tool.setuptools]
+packages = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
