@@ -1,4 +1,5 @@
 import pandas as pd
+import os
 from src.tools import *
 import re
 import json
@@ -13,6 +14,15 @@ RC_FILE_PATH = "src/files/RC.xlsx"
 TAT_FILE_PATH = "src/files/TAT.xlsx"
 SHEET_NAME_RC_FILE = "BANCOLOMBIA"
 
+# validate files exist
+def check_file_exists(file_path):
+    if not os.path.exists(file_path):
+        logger.error(f"Archivo {file_path.split('/')[-1].split('.')[0]} no encontrado. Verifique que el archivo exista y tenga el siguiente nombre: {file_path.split('/')[-1]}")
+        exit(1)
+        
+check_file_exists(RC_FILE_PATH)
+check_file_exists(TAT_FILE_PATH)
+       
 # list tabs from tat file and filter only those that match the pattern 5 digits - 5 digits
 list_tabs_tat = [tab for tab in list_tabs(
     TAT_FILE_PATH) if re.match(r'^\d{5}-\d{5}$', tab)]
@@ -27,7 +37,8 @@ if df_rc.empty:
 
 # check field FECHA and VALOR and FACTURA in RC file
 if "FECHA" not in df_rc.columns or "VALOR" not in df_rc.columns or "FACTURA" not in df_rc.columns:
-    logger.error("RC file must contain 'FECHA', 'VALOR', and 'FACTURA' columns.")
+    logger.error(
+        "RC file must contain 'FECHA', 'VALOR', and 'FACTURA' columns.")
     exit(1)
 
 # check FECHA format in RC file is 18.11.2025
@@ -83,8 +94,9 @@ for tab in list_tabs_tat:
             (record_rc for record_rc in rac_data if record_rc["VALOR"] == valor and record_rc["FECHA"] == fecha), None)
 
         if match:
-            df_rc.loc[(df_rc["VALOR"] == valor) & (df_rc["FECHA"] == fecha), "MATCH"] = f"ENCONTRADO EN TAT: {tab}"
-            
+            df_rc.loc[(df_rc["VALOR"] == valor) & (df_rc["FECHA"] ==
+                                                   fecha), "MATCH"] = f"ENCONTRADO EN TAT: {tab}"
+
         continue
 
 # summary
@@ -111,8 +123,3 @@ with pd.ExcelWriter("resultado_conciliacion.xlsx") as writer:
 
 logger.info(
     "Conciliación completada. Resultado guardado en 'resultado_conciliacion.xlsx'.")
-
-
-
-
-
