@@ -15,14 +15,18 @@ TAT_FILE_PATH = "src/files/TAT.xlsx"
 SHEET_NAME_RC_FILE = "BANCOLOMBIA"
 
 # validate files exist
+
+
 def check_file_exists(file_path):
     if not os.path.exists(file_path):
-        logger.error(f"Archivo {file_path.split('/')[-1].split('.')[0]} no encontrado. Verifique que el archivo exista y tenga el siguiente nombre: {file_path.split('/')[-1]}")
+        logger.error(
+            f"Archivo {file_path.split('/')[-1].split('.')[0]} no encontrado. Verifique que el archivo exista y tenga el siguiente nombre: {file_path.split('/')[-1]}")
         exit(1)
-        
+
+
 check_file_exists(RC_FILE_PATH)
 check_file_exists(TAT_FILE_PATH)
-       
+
 # list tabs from tat file and filter only those that match the pattern 5 digits - 5 digits
 list_tabs_tat = [tab for tab in list_tabs(
     TAT_FILE_PATH) if re.match(r'^\d{5}-\d{5}$', tab)]
@@ -50,11 +54,11 @@ if not df_rc["FECHA"].apply(lambda x: re.match(r'^\d{2}\.\d{2}\.\d{4}$', str(x))
 # convert VALOR to float to ensure proper comparison
 df_rc["VALOR"] = df_rc["VALOR"].astype(float)
 
-# create a list of dictionaries from df_rc for easier comparison with tat_data example: [{"FECHA": "18.11.2025", "VALOR": 1000.0}, {"FECHA": "19.11.2025", "VALOR": 2000.0}]
-rac_data = df_rc[["FECHA", "VALOR"]].to_dict(orient="records")
-
 # initialize MATCH column in df_rc with default value "NO EXISTE"
 df_rc["MATCH"] = "NO EXISTE"
+# create a list of dictionaries from df_rc for easier comparison with tat_data example: [{"FECHA": "18.11.2025", "VALOR": 1000.0, "MATCH": "NO EXISTE"}, {"FECHA": "19.11.2025", "VALOR": 2000.0, "MATCH": "NO EXISTE"}]
+rac_data = df_rc[["FECHA", "VALOR", "MATCH"]].to_dict(orient="records")
+rac_data = df_rc.reset_index().to_dict("records")
 
 # iterate over each tab in TAT file and compare with rac_data, if match found, update MATCH column in df_rc with "ENCONTRADO EN TAT: {tab}"
 for tab in list_tabs_tat:
@@ -78,26 +82,34 @@ for tab in list_tabs_tat:
     # create a list of dictionaries from df_tat for easier comparison with rac_data example: [{"FECHA": "18.11.2025", "RECIBO": "12345", "VALOR": 1000.0}, {"FECHA": "19.11.2025", "RECIBO": "67890", "VALOR": 2000.0}]
     tat_data = df_tat[["FECHA", "RECIBO", "VALOR"]].to_dict(orient="records")
 
+    # tat_data = [{"FECHA": "18.11.2025", "RECIBO": "12345", "VALOR": 1000.0}, {"FECHA": "19.11.2025", "RECIBO": "67890", "VALOR": 2000.0}]
+
     # iterate over each record in tat_data and check if there is a match in rac_data, if match found, update MATCH column in df_rc with "ENCONTRADO EN TAT: {tab}"
     for record_tat in tat_data:
-        valor = record_tat["VALOR"]
-        fecha = record_tat["FECHA"]
+        valor_tat = record_tat["VALOR"]
+        fecha_tat = record_tat["FECHA"]
+        logger.info(
+            f"Processing TAT record with FECHA: {fecha_tat} and VALOR: {valor_tat} in TAT tab: {tab}'")
 
         # check FECHA format in TAT file is 18.11.2025
-        if not re.match(r'^\d{2}\.\d{2}\.\d{4}$', str(fecha)):
+        if not re.match(r'^\d{2}\.\d{2}\.\d{4}$', str(fecha_tat)):
             logger.error(
-                f"Error: La fecha: {fecha}' en el archivo TAT y pestaña '{tab}' debe estar en el formato DD.MM.YYYY.")
+                f"Error: La fecha: {fecha_tat}' en el archivo TAT y pestaña '{tab}' debe estar en el formato DD.MM.YYYY.")
             exit(1)
 
         # check if there is a match in rac_data for the current record_tat, if match found, update MATCH column in df_rc with "ENCONTRADO EN TAT: {tab}"
-        match = next(
-            (record_rc for record_rc in rac_data if record_rc["VALOR"] == valor and record_rc["FECHA"] == fecha), None)
+        for record_rc in rac_data:
+            if (
+                record_rc["VALOR"] == valor_tat
+                and record_rc["FECHA"] == fecha_tat
+                and df_rc.loc[record_rc["index"], "MATCH"] == "NO EXISTE"
+            ):
+                df_rc.loc[record_rc["index"],
+                          "MATCH"] = f"ENCONTRADO EN TAT: {tab}"
+                logger.debug(
+                    f"Writing match for RC record with FECHA: {record_rc['FECHA']} and VALOR: {record_rc['VALOR']} and VALOR_TAT: {valor_tat} and FECHA_TAT: {fecha_tat} in TAT tab: {tab}'")
+                break
 
-        if match:
-            df_rc.loc[(df_rc["VALOR"] == valor) & (df_rc["FECHA"] ==
-                                                   fecha), "MATCH"] = f"ENCONTRADO EN TAT: {tab}"
-
-        continue
 
 # summary
 match_counts = (
@@ -114,7 +126,7 @@ factura_counts = (
 
 match_counts.columns = ["MATCH", "CANTIDAD"]
 factura_counts.columns = ["FACTURA", "CANTIDAD"]
-
+logger.info("Resumen completado, revisar las hojas 'Resumen_MATCH' y 'Resumen_FACTURA' en el archivo de resultado.")
 # save results.
 with pd.ExcelWriter("resultado_conciliacion.xlsx") as writer:
     df_rc.to_excel(writer, sheet_name="Detalle", index=False)
